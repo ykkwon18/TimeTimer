@@ -1,5 +1,7 @@
 # Time Timer
 
+![screenshot](asset/timetimer.png)
+
 A small desktop clone of the Time Timer countdown clock.
 
 ## Run
