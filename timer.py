@@ -35,7 +35,8 @@ class TimeTimer:
         self.root = root
         root.title("Time Timer")
         root.geometry(f"{WINDOW_W}x{WINDOW_H}")
-        root.resizable(False, False)
+        root.minsize(280, 420)
+        root.resizable(True, True)
 
         self.default_bg = root.cget("bg")
 
@@ -59,7 +60,8 @@ class TimeTimer:
             highlightthickness=0,
             bg=self.default_bg,
         )
-        self.dial.pack(pady=(10, 6))
+        self.dial.pack(pady=(10, 6), expand=True, fill="both")
+        self.dial.bind("<Configure>", lambda e: self._draw_dial())
 
         self.entry_var = tk.StringVar(value="45:00")
         self.entry_frame = tk.Frame(self.root, bg=self.default_bg)
@@ -84,10 +86,11 @@ class TimeTimer:
             highlightthickness=0,
             bg=self.default_bg,
         )
-        self.slider.pack(pady=8)
+        self.slider.pack(pady=8, fill="x", padx=20)
         self.slider.bind("<Button-1>", self._on_slider_press)
         self.slider.bind("<B1-Motion>", self._on_slider_drag)
         self.slider.bind("<MouseWheel>", self._on_slider_wheel)
+        self.slider.bind("<Configure>", lambda e: self._draw_slider())
 
         self.btn_frame = tk.Frame(self.root, bg=self.default_bg)
         self.btn_frame.pack(pady=10)
@@ -106,58 +109,81 @@ class TimeTimer:
     def _draw_dial(self):
         c = self.dial
         c.delete("all")
-        cx = DIAL_PAD + DIAL_SIZE / 2
-        cy = DIAL_PAD + DIAL_SIZE / 2
-        r = DIAL_SIZE / 2
+        w = c.winfo_width()
+        h = c.winfo_height()
+        size = min(w, h) - 2 * DIAL_PAD
+        if size < 60:
+            return
+        cx = w / 2
+        cy = h / 2
+        r = size / 2
+        hub_r = max(4, int(r / 18))
+        label_font = ("Segoe UI", max(7, int(r / 14)), "bold")
+        brand_font = ("Segoe UI", max(6, int(r / 24)), "bold")
+        hand_w = max(2, int(r / 30))
+        tick_major_w = max(1, int(r / 80) + 1)
+        tick_minor_w = 1
+        ring = max(4, int(r / 30))
 
-        c.create_oval(cx - r - 8, cy - r - 8, cx + r + 8, cy + r + 8,
+        c.create_oval(cx - r - ring, cy - r - ring,
+                      cx + r + ring, cy + r + ring,
                       fill="#ececec", outline="#bdbdbd", width=2)
         c.create_oval(cx - r, cy - r, cx + r, cy + r,
                       fill="white", outline="#888", width=1)
 
         rem = max(0.0, min(3600.0, self.remaining_seconds))
         frac = rem / 3600.0
+        inset = max(3, int(r / 30))
         if rem > 0:
-            extent = 360.0 * frac
-            c.create_arc(cx - r + 6, cy - r + 6, cx + r - 6, cy + r - 6,
-                         start=90, extent=extent, fill=RED, outline=RED)
+            c.create_arc(cx - r + inset, cy - r + inset,
+                         cx + r - inset, cy + r - inset,
+                         start=90, extent=360.0 * frac,
+                         fill=RED, outline=RED)
 
+        outer_off = max(2, int(r / 50))
+        major_len = max(6, int(r / 12))
+        minor_len = max(3, int(r / 24))
+        label_off = max(14, int(r / 6))
         for m in range(60):
             ang = math.radians(90 + m * 6)
             is_major = (m % 5 == 0)
-            outer = r - 4
-            inner = r - (12 if is_major else 6)
+            outer = r - outer_off
+            inner = r - (major_len if is_major else minor_len)
             x1 = cx + outer * math.cos(ang)
             y1 = cy - outer * math.sin(ang)
             x2 = cx + inner * math.cos(ang)
             y2 = cy - inner * math.sin(ang)
             c.create_line(x1, y1, x2, y2, fill="#222",
-                          width=2 if is_major else 1)
+                          width=tick_major_w if is_major else tick_minor_w)
             if is_major:
-                lr = r - 26
+                lr = r - label_off
                 lx = cx + lr * math.cos(ang)
                 ly = cy - lr * math.sin(ang)
                 c.create_text(lx, ly, text=str(m),
-                              font=("Segoe UI", 11, "bold"), fill="#111")
+                              font=label_font, fill="#111")
 
         if rem > 0:
             ang = math.radians(90 + (rem / 60.0) * 6)
-            hr = r - 14
+            hr = r - max(8, int(r / 10))
             hx = cx + hr * math.cos(ang)
             hy = cy - hr * math.sin(ang)
             c.create_line(cx, cy, hx, hy, fill="white",
-                          width=4, capstyle="round")
-        c.create_oval(cx - 8, cy - 8, cx + 8, cy + 8,
+                          width=hand_w, capstyle="round")
+        c.create_oval(cx - hub_r, cy - hub_r, cx + hub_r, cy + hub_r,
                       fill="white", outline="#888")
         c.create_text(cx + r * 0.55, cy + r * 0.85, text="TIME TIMER",
-                      font=("Segoe UI", 7, "bold"), fill="#888")
+                      font=brand_font, fill="#888")
 
     def _draw_slider(self):
         c = self.slider
         c.delete("all")
-        track_y = SLIDER_H / 2
+        w = c.winfo_width()
+        h = c.winfo_height()
+        if w < 30:
+            return
+        track_y = h / 2
         x0 = HANDLE_R + 2
-        x1 = SLIDER_W - HANDLE_R - 2
+        x1 = w - HANDLE_R - 2
         c.create_rectangle(x0, track_y - SLIDER_TRACK_H / 2,
                            x1, track_y + SLIDER_TRACK_H / 2,
                            fill="white", outline="#888")
@@ -234,8 +260,9 @@ class TimeTimer:
 
     # ---------- slider ----------
     def _slider_x_to_seconds(self, x):
+        w = self.slider.winfo_width()
         x0 = HANDLE_R + 2
-        x1 = SLIDER_W - HANDLE_R - 2
+        x1 = max(x0 + 1, w - HANDLE_R - 2)
         frac = (x - x0) / (x1 - x0)
         frac = max(0.0, min(1.0, frac))
         return int(round(frac * 60)) * 60
